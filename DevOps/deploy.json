@@ -170,6 +170,112 @@
             }
         },
         {
+            "type": "Microsoft.Sql/servers",
+            "apiVersion": "2014-04-01",
+            "location": "[resourceGroup().location]",
+            "name": "[variables('sqlServerName')]",
+            "tags": {
+                "WorkloadName": "[variables('tagWorkload')]",
+                "Environment": "[parameters('environment')]"
+            },
+            "properties": {
+                "administratorLogin": "sqladmin",
+                "administratorLoginPassword": "[variables('sqlserverAdminPassword')]",
+                "version": "12.0"
+            },
+            "resources": [
+                {
+                    "type": "elasticPools",
+                    "apiVersion": "2017-10-01-preview",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Sql/servers/', variables('sqlServerName'))]"
+                    ],
+                    "tags": {
+                        "WorkloadName": "[variables('tagWorkload')]",
+                        "Environment": "[parameters('environment')]"
+                    },
+                    "location": "[resourceGroup().location]",
+                    "name": "[variables('dbPoolName')]",
+                    "sku": {
+                        "name": "[parameters('dbPoolSku')]",
+                        "tier": "[parameters('dbPoolTier')]",
+                        "capacity": "[parameters('dbPoolLimit')]"
+                    },
+                    "properties": {
+                        "perDatabaseSettings": {
+                            "minCapacity": 0,
+                            "maxCapacity": "[parameters('dbPoolLimit')]"
+                        }
+                    }
+                },
+                {
+                    "name": "ActiveDirectory",
+                    "type": "administrators",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Sql/servers', variables('sqlServerName'))]",
+                        "[resourceId('Microsoft.Sql/servers/elasticpools', variables('sqlServerName'), variables('dbPoolName'))]"
+                    ],
+                    "apiVersion": "2019-06-01-preview",
+                    "properties": {
+                        "administratorType": "ActiveDirectory",
+                        "login": "Applications Team - Database Administrator",
+                        "sid": "[parameters('aadAminTeamId')]",
+                        "tenantId": "[parameters('aadTenantId')]"
+                    }
+                },
+                {
+                    "apiVersion": "2014-04-01",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Sql/servers/', variables('sqlServerName'))]",
+                        "[resourceId('Microsoft.Sql/servers/elasticpools', variables('sqlServerName'), variables('dbPoolName'))]"
+                    ],
+                    "location": "[resourceGroup().location]",
+                    "name": "AllowAllWindowsAzureIps",
+                    "properties": {
+                        "startIpAddress": "0.0.0.0",
+                        "endIpAddress": "0.0.0.0"
+                    },
+                    "type": "firewallrules"
+                },
+                {
+                    "apiVersion": "2014-04-01",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Sql/servers/', variables('sqlServerName'))]",
+                        "[resourceId('Microsoft.Sql/servers/elasticpools', variables('sqlServerName'), variables('dbPoolName'))]"
+                    ],
+                    "location": "[resourceGroup().location]",
+                    "name": "AllowAll",
+                    "properties": {
+                        "startIpAddress": "[parameters('sqlIpException')]",
+                        "endIpAddress": "[parameters('sqlIpException')]"
+                    },
+                    "type": "firewallrules"
+                }
+            ]
+        },
+        {
+            "type": "Microsoft.Sql/servers/databases",
+            "name": "[concat(variables('sqlServerName'), '/', variables('dbName'))]",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2017-10-01-preview",
+            "tags": {
+                "WorkloadName": "[variables('tagWorkload')]",
+                "Environment": "[parameters('environment')]"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Sql/servers/', variables('sqlServerName'))]",
+                "[resourceId('Microsoft.Sql/servers/elasticpools', variables('sqlServerName'), variables('dbPoolName'))]"
+            ],
+            "sku": {
+                "name": "ElasticPool",
+                "tier": "[parameters('dbPoolTier')]",
+                "capacity": 0
+            },
+            "properties": {
+                "elasticPoolId": "[resourceId('Microsoft.Sql/servers/elasticpools', variables('sqlServerName'), variables('dbPoolName'))]"
+            }
+        },
+        {
             "name": "[variables('appServiceName')]",
             "type": "Microsoft.Web/serverfarms",
             "apiVersion": "2018-02-01",
@@ -254,6 +360,10 @@
         }
     ],
     "outputs": {
+        "sqlServerName": {
+            "type": "string",
+            "value": "[variables('sqlServerName')]"
+        }
 
     }
 }

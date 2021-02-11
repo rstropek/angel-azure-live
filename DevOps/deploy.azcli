@@ -5,10 +5,16 @@ RG=AzureWebSampleDev
 ENV=dev
 LOC=westeurope
 
+ADMINGRP=$(az ad group list --display-name AzureAdmins | jq .[0].objectId -r)
+TENANT=$(az account show | jq .tenantId -r)
+
 az deployment sub create --template-file deploy-rg.json --location $LOC \
   --parameters rgName=$RG location=$LOC
 
-az deployment group create --resource-group $RG --template-file deploy.json --name $(date +%F_%H-%M-%S) \
+RESULT=$(az deployment group create --resource-group $RG --template-file deploy.json --name $(date +%F_%H-%M-%S) \
     --parameters environment=$ENV sqlDbPasswordSeed=$(uuidgen) aadAminTeamId=$ADMINGRP \
-                 aadTenantId=foobar apiClientId=foobar appServiceInstances=1 \
-                 sqlIpException=$(dig +short myip.opendns.com @resolver1.opendns.com)
+                 aadTenantId=$TENANT apiClientId=foobar appServiceInstances=1 \
+                 sqlIpException=$(dig +short myip.opendns.com @resolver1.opendns.com))
+
+az sql server update --resource-group $RG --name $(jq '.properties.outputs.sqlServerName.value' -r <<< $RESULT) \
+  --minimal-tls-version 1.2
