@@ -154,6 +154,103 @@
                 "name": "[parameters('storageSku')]",
                 "tier": "[parameters('storageTier')]"
             }
+        },
+        {
+            "type": "microsoft.insights/components",
+            "kind": "web",
+            "name": "[variables('appInsightsName')]",
+            "apiVersion": "2015-05-01",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "WorkloadName": "[variables('tagWorkload')]",
+                "Environment": "[parameters('environment')]"
+            },
+            "properties": {
+                "Application_Type": "web"
+            }
+        },
+        {
+            "name": "[variables('appServiceName')]",
+            "type": "Microsoft.Web/serverfarms",
+            "apiVersion": "2018-02-01",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "[parameters('appServiceSku')]",
+                "capacity": "[parameters('appServiceInstances')]"
+            },
+            "tags": {
+                "WorkloadName": "[variables('tagWorkload')]",
+                "Environment": "[parameters('environment')]"
+            },
+            "properties": {}
+        },
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2018-11-01",
+            "name": "[variables('webAppName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "WorkloadName": "[variables('tagWorkload')]",
+                "Environment": "[parameters('environment')]"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/serverfarms', variables('appServiceName'))]"
+            ],
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "properties": {
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServiceName'))]",
+                "httpsOnly": true,
+                "siteConfig": {
+                    "netFrameworkVersion": "5.0",
+                    "ftpsState": "FtpsOnly",
+                    "appSettings": [
+                        {
+                            "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+                            "value": "[reference(resourceId('microsoft.insights/components/', variables('appInsightsName')), '2015-05-01').InstrumentationKey]"
+                        },
+                        {
+                            "name": "ConnectionStrings:DefaultConnection",
+                            "value": "[concat('Server=tcp:', variables('sqlServerName'), '.database.windows.net,1433;Database=', variables('dbName'), ';')]"
+                        },
+                        {
+                            "name": "AADTenant",
+                            "value": "[parameters('aadTenantId')]"
+                        },
+                        {
+                            "name": "AzureAd:Instance",
+                            "value": "https://login.microsoftonline.com/"
+                        },
+                        {
+                            "name": "AzureAd:ClientId",
+                            "value": "[parameters('apiClientId')]"
+                        },
+                        {
+                            "name": "AzureAd:TenantId",
+                            "value": "[parameters('aadTenantId')]"
+                        },
+                        {
+                            "name": "AzureAd:Audience",
+                            "value": "[parameters('apiAudience')]"
+                        },
+                        {
+                            "name": "FunctionUrl",
+                            "value": "[variables('funcAppName')]"
+                        },
+                        {
+                            "name": "KeyVault",
+                            "value": "[variables('kvName')]"
+                        }
+                    ],
+                    "connectionStrings": [],
+                    "use32BitWorkerProcess": true,
+                    "alwaysOn": true,
+                    "http20Enabled": true,
+                    "minTlsVersion": "1.2"
+                }
+            },
+            "resources": []
         }
     ],
     "outputs": {

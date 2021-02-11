@@ -10,5 +10,5 @@ az deployment sub create --template-file deploy-rg.json --location $LOC \
 
 az deployment group create --resource-group $RG --template-file deploy.json --name $(date +%F_%H-%M-%S) \
     --parameters environment=$ENV sqlDbPasswordSeed=$(uuidgen) aadAminTeamId=$ADMINGRP \
-                 aadTenantId=foobar apiClientId=foobar \
+                 aadTenantId=foobar apiClientId=foobar appServiceInstances=1 \
                  sqlIpException=$(dig +short myip.opendns.com @resolver1.opendns.com)
