@@ -1,0 +1,14 @@
+# az login --use-device-code
+# az account set --subscription b33f0285-db27-4896-ac5c-df22004b0aba
+
+RG=AzureWebSampleDev
+ENV=dev
+LOC=westeurope
+
+az deployment sub create --template-file deploy-rg.json --location $LOC \
+  --parameters rgName=$RG location=$LOC
+
+az deployment group create --resource-group $RG --template-file deploy.json --name $(date +%F_%H-%M-%S) \
+    --parameters environment=$ENV sqlDbPasswordSeed=$(uuidgen) aadAminTeamId=$ADMINGRP \
+                 aadTenantId=foobar apiClientId=foobar \
+                 sqlIpException=$(dig +short myip.opendns.com @resolver1.opendns.com)

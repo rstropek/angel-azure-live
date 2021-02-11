@@ -1,0 +1,162 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "environment": {
+            "type": "string",
+            "allowedValues": [
+                "dev",
+                "test",
+                "prod"
+            ],
+            "defaultValue": "dev"
+        },
+        "appServiceSku": {
+            "type": "string",
+            "defaultValue": "P1"
+        },
+        "appServiceInstances": {
+            "type": "int",
+            "defaultValue": 1
+        },
+        "storageSku": {
+            "type": "string",
+            "defaultValue": "Standard_LRS"
+        },
+        "storageTier": {
+            "type": "string",
+            "defaultValue": "Standard"
+        },
+        "sqlDbPasswordSeed": {
+            "type": "securestring"
+        },
+        "sqlIpException": {
+            "type": "string"
+        },
+        "dbPoolSku": {
+            "type": "string",
+            "defaultValue": "StandardPool"
+        },
+        "dbPoolTier": {
+            "type": "string",
+            "defaultValue": "Standard"
+        },
+        "dbPoolLimit": {
+            "type": "int",
+            "defaultValue": 50
+        },
+        "aadAminTeamId": {
+            "type": "securestring"
+        },
+        "aadTenantId": {
+            "type": "string"
+        },
+        "apiClientId": {
+            "type": "string"
+        },
+        "apiAudience": {
+            "type": "string",
+            "defaultValue": "https://azure-web-sample-api.net"
+        },
+        "keyVaultSku": {
+            "type": "string",
+            "defaultValue": "Standard"
+        },
+        "vnetAddressSpace": {
+            "type": "string",
+            "defaultValue": "10.0.0.0/23"
+        },
+        "defaultSubnetAddressSpace": {
+            "type": "string",
+            "defaultValue": "10.0.0.0/24"
+        },
+        "peSubnetAddressSpace": {
+            "type": "string",
+            "defaultValue": "10.0.1.0/24"
+        }
+    },
+    "functions": [],
+    "variables": {
+        "appServiceName": "[concat('asp-', uniqueString(resourceGroup().name))]",
+        "webAppName": "[concat('web-', uniqueString(resourceGroup().name))]",
+        "kvName": "[concat('kv-', uniqueString(resourceGroup().name))]",
+        "storageName": "[concat('st', uniqueString(resourceGroup().name))]",
+        "staticWebStorageName": "[concat('stspa', uniqueString(resourceGroup().name))]",
+        "appInsightsName": "[concat('ain-', uniqueString(resourceGroup().name))]",
+        "sqlServerName": "[concat('sql-', uniqueString(resourceGroup().name))]",
+        "dbPoolName": "[concat('dbp-', uniqueString(resourceGroup().name))]",
+        "dbName": "[concat('db-', uniqueString(resourceGroup().name))]",
+        "funcAppName": "[concat('func-', uniqueString(resourceGroup().name))]",
+        "vnetName": "[concat('vnet-', uniqueString(resourceGroup().name))]",
+        "sqlPeName": "[concat('sql-pe-', uniqueString(resourceGroup().name))]",
+        "kvPeName": "[concat('kv-pe-', uniqueString(resourceGroup().name))]",
+        "sqlPrivateDnsZoneName": "[concat('privatelink', environment().suffixes.sqlServerHostname)]",
+        "kvPrivateDnsZoneName": "[concat('privatelink', environment().suffixes.keyvaultDns)]",
+        "sqlPeDnsGroupName": "[concat(variables('sqlPeName'),'/pe-dns-group')]",
+        "kvPeDnsGroupName": "[concat(variables('kvPeName'),'/pe-dns-group')]",
+        "subnetDefault": "subnet-default",
+        "subnetPrivateEndpoints": "subnet-pe",
+        "tagWorkload": "Sample Web App",
+        "sqlserverAdminPassword": "[concat('P', uniqueString(resourceGroup().id, parameters('sqlDbPasswordSeed')), 'x', '!')]",
+        "accountSasProperties": {
+            "signedServices": "b",
+            "signedPermission": "w",
+            "signedExpiry": "2029-12-31T00:00:01Z",
+            "signedResourceTypes": "o"
+        }
+    },
+    "resources": [
+        {
+            "name": "[variables('storageName')]",
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2019-06-01",
+            "tags": {
+                "WorkloadName": "[variables('tagWorkload')]",
+                "Environment": "[parameters('environment')]"
+            },
+            "location": "[resourceGroup().location]",
+            "kind": "StorageV2",
+            "properties": {
+                "allowBlobPublicAccess": false,
+                "minimumTlsVersion": "TLS1_2",
+                "networkAcls": {
+                    "defaultAction": "Deny",
+                    "bypass": "AzureServices",
+                    "ipRules": [
+                        {
+                            "value": "[parameters('sqlIpException')]",
+                            "action": "Allow"
+                        }
+                    ],
+                    "virtualNetworkRules": []
+                }
+            },
+            "sku": {
+                "name": "[parameters('storageSku')]",
+                "tier": "[parameters('storageTier')]"
+            }
+        },
+        {
+            "name": "[variables('staticWebStorageName')]",
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2019-06-01",
+            "tags": {
+                "WorkloadName": "[variables('tagWorkload')]",
+                "Environment": "[parameters('environment')]"
+            },
+            "location": "[resourceGroup().location]",
+            "kind": "StorageV2",
+            "properties": {
+                "allowBlobPublicAccess": true,
+                "minimumTlsVersion": "TLS1_2"
+            },
+            "sku": {
+                "name": "[parameters('storageSku')]",
+                "tier": "[parameters('storageTier')]"
+            }
+        }
+    ],
+    "outputs": {
+
+    }
+}
