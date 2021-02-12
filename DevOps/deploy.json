@@ -66,6 +66,10 @@
             "type": "string",
             "defaultValue": "10.0.0.0/23"
         },
+        "vnetBastionAddressSpace": {
+            "type": "string",
+            "defaultValue": "10.0.2.0/24"
+        },
         "defaultSubnetAddressSpace": {
             "type": "string",
             "defaultValue": "10.0.0.0/24"
@@ -73,6 +77,10 @@
         "peSubnetAddressSpace": {
             "type": "string",
             "defaultValue": "10.0.1.0/24"
+        },
+        "bastionSubnetAddressSpace": {
+            "type": "string",
+            "defaultValue": "10.0.2.0/27"
         }
     },
     "functions": [],
@@ -106,6 +114,46 @@
         }
     },
     "resources": [
+        {
+            "type": "Microsoft.Network/virtualNetworks",
+            "apiVersion": "2020-05-01",
+            "name": "[variables('vnetName')]",
+            "tags": {
+                "WorkloadName": "[variables('tagWorkload')]",
+                "Environment": "[parameters('environment')]"
+            },
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[parameters('vnetAddressSpace')]",
+                        "[parameters('vnetBastionAddressSpace')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('subnetDefault')]",
+                        "properties": {
+                            "addressPrefix": "[parameters('defaultSubnetAddressSpace')]"
+                        }
+                    },
+                    {
+                        "name": "[variables('subnetPrivateEndpoints')]",
+                        "properties": {
+                            "addressPrefix": "[parameters('peSubnetAddressSpace')]",
+                            "privateEndpointNetworkPolicies": "Disabled"
+                        }
+                    },
+                    {
+                        "name": "AzureBastionSubnet",
+                        "properties": {
+                            "addressPrefix": "[parameters('bastionSubnetAddressSpace')]"
+                        }
+                    }
+                ]
+            },
+            "resources": [ ]
+        },
         {
             "name": "[variables('storageName')]",
             "type": "Microsoft.Storage/storageAccounts",
@@ -276,6 +324,78 @@
             }
         },
         {
+            "type": "Microsoft.Network/privateDnsZones",
+            "apiVersion": "2020-01-01",
+            "name": "[variables('sqlPrivateDnsZoneName')]",
+            "location": "global",
+            "dependsOn": [
+                "[variables('vnetName')]"
+            ],
+            "properties": ""
+        },
+        {
+            "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+            "apiVersion": "2020-01-01",
+            "name": "[concat(variables('sqlPrivateDnsZoneName'), '/', variables('sqlPrivateDnsZoneName'), '-link')]",
+            "location": "global",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', variables('sqlPrivateDnsZoneName'))]",
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+            ],
+            "properties": {
+                "registrationEnabled": false,
+                "virtualNetwork": {
+                    "id": "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Network/privateEndpoints",
+            "apiVersion": "2020-06-01",
+            "name": "[variables('sqlPeName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[variables('vnetName')]",
+                "[variables('sqlServerName')]"
+            ],
+            "properties": {
+                "subnet": {
+                    "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('subnetPrivateEndpoints'))]"
+                },
+                "privateLinkServiceConnections": [
+                    {
+                        "name": "[variables('sqlPeName')]",
+                        "properties": {
+                            "privateLinkServiceId": "[resourceId('Microsoft.Sql/servers',variables('sqlServerName'))]",
+                            "groupIds": [
+                                "sqlServer"
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+            "apiVersion": "2020-06-01",
+            "name": "[variables('sqlPeDnsGroupName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', variables('sqlPrivateDnsZoneName'))]",
+                "[variables('sqlPeName')]"
+            ],
+            "properties": {
+                "privateDnsZoneConfigs": [
+                    {
+                        "name": "config1",
+                        "properties": {
+                            "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', variables('sqlPrivateDnsZoneName'))]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
             "name": "[variables('appServiceName')]",
             "type": "Microsoft.Web/serverfarms",
             "apiVersion": "2018-02-01",
@@ -347,6 +467,14 @@
                         {
                             "name": "KeyVault",
                             "value": "[variables('kvName')]"
+                        },
+                        {
+                            "name": "WEBSITE_DNS_SERVER",
+                            "value": "168.63.129.16"
+                        },
+                        {
+                            "name": "WEBSITE_VNET_ROUTE_ALL",
+                            "value": "1"
                         }
                     ],
                     "connectionStrings": [],

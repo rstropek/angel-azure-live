@@ -18,3 +18,7 @@ RESULT=$(az deployment group create --resource-group $RG --template-file deploy.
 
 az sql server update --resource-group $RG --name $(jq '.properties.outputs.sqlServerName.value' -r <<< $RESULT) \
   --minimal-tls-version 1.2
+
+# ACR
+REG=angelcr
+az acr login --name $REG
