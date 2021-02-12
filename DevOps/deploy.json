@@ -70,6 +70,10 @@
             "type": "string",
             "defaultValue": "10.0.2.0/24"
         },
+        "vnetAppServiceAddressSpace": {
+            "type": "string",
+            "defaultValue": "10.0.3.0/24"
+        },
         "defaultSubnetAddressSpace": {
             "type": "string",
             "defaultValue": "10.0.0.0/24"
@@ -81,6 +85,10 @@
         "bastionSubnetAddressSpace": {
             "type": "string",
             "defaultValue": "10.0.2.0/27"
+        },
+        "appServiceSubnetAddressSpace": {
+            "type": "string",
+            "defaultValue": "10.0.3.0/27"
         }
     },
     "functions": [],
@@ -127,7 +135,8 @@
                 "addressSpace": {
                     "addressPrefixes": [
                         "[parameters('vnetAddressSpace')]",
-                        "[parameters('vnetBastionAddressSpace')]"
+                        "[parameters('vnetBastionAddressSpace')]",
+                        "[parameters('vnetAppServiceAddressSpace')]"
                     ]
                 },
                 "subnets": [
@@ -148,6 +157,20 @@
                         "name": "AzureBastionSubnet",
                         "properties": {
                             "addressPrefix": "[parameters('bastionSubnetAddressSpace')]"
+                        }
+                    },
+                    {
+                        "name": "AppServiceSubnet",
+                        "properties": {
+                            "addressPrefix": "[parameters('appServiceSubnetAddressSpace')]",
+                            "delegations": [
+                                {
+                                    "name": "delegation",
+                                    "properties": {
+                                        "serviceName": "Microsoft.Web/serverFarms"
+                                    }
+                                }
+                            ]
                         }
                     }
                 ]
@@ -420,7 +443,8 @@
                 "Environment": "[parameters('environment')]"
             },
             "dependsOn": [
-                "[resourceId('Microsoft.Web/serverfarms', variables('appServiceName'))]"
+                "[resourceId('Microsoft.Web/serverfarms', variables('appServiceName'))]",
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
             ],
             "identity": {
                 "type": "SystemAssigned"
@@ -484,7 +508,20 @@
                     "minTlsVersion": "1.2"
                 }
             },
-            "resources": []
+            "resources": [
+                {
+                    "name": "virtualNetwork",
+                    "type": "config",
+                    "apiVersion": "2019-08-01",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', variables('webAppName'))]"
+                    ],
+                    "properties": {
+                        "subnetResourceId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), 'AppServiceSubnet')]",
+                        "swiftSupported": true
+                    }
+                }
+            ]
         }
     ],
     "outputs": {
