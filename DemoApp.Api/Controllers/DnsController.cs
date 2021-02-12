@@ -25,7 +25,7 @@ namespace DemoApp.Api.Controllers
         public IActionResult AccessDatabase()
         {
             var addressesString = new StringBuilder();
-            var addresses = Dns.GetHostAddresses($"sql-a56tu4bzkgjjw.database.windows.net");
+            var addresses = Dns.GetHostAddresses("sql-a56tu4bzkgjjw.database.windows.net");
             return Ok(string.Join(", ", addresses.ToArray().Select(x => x.ToString())));
         }
     }
