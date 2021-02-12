@@ -95,7 +95,7 @@
     "variables": {
         "appServiceName": "[concat('asp-', uniqueString(resourceGroup().name))]",
         "webAppName": "[concat('web-', uniqueString(resourceGroup().name))]",
-        "kvName": "[concat('kv-', uniqueString(resourceGroup().name))]",
+        "kvName": "[concat('kv-2-', uniqueString(resourceGroup().name))]",
         "storageName": "[concat('st', uniqueString(resourceGroup().name))]",
         "staticWebStorageName": "[concat('stspa', uniqueString(resourceGroup().name))]",
         "appInsightsName": "[concat('ain-', uniqueString(resourceGroup().name))]",
@@ -522,6 +522,175 @@
                     }
                 }
             ]
+        },
+        {
+            "apiVersion": "2015-08-01",
+            "type": "Microsoft.Web/sites",
+            "name": "[variables('funcAppName')]",
+            "location": "[resourceGroup().location]",
+            "kind": "functionapp",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]",
+                "[resourceId('Microsoft.Insights/components', variables('appInsightsName'))]"
+            ],
+            "tags": {
+                "WorkloadName": "[variables('tagWorkload')]",
+                "Environment": "[parameters('environment')]"
+            },
+            "properties": {
+                "httpsOnly": true,
+                "siteConfig": {
+                    "ftpsState": "Disabled",
+                    "appSettings": [
+                        {
+                            "name": "AzureWebJobsStorage",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageName'), ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')),'2019-06-01').keys[0].value)]"
+                        },
+                        {
+                            "name": "FUNCTIONS_WORKER_RUNTIME",
+                            "value": "dotnet"
+                        },
+                        {
+                            "name": "FUNCTIONS_EXTENSION_VERSION",
+                            "value": "~3"
+                        },
+                        {
+                            "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+                            "value": "[reference(resourceId('microsoft.insights/components/', variables('appInsightsName')), '2015-05-01').InstrumentationKey]"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults",
+            "apiVersion": "2016-10-01",
+            "name": "[variables('kvName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "WorkloadName": "[variables('tagWorkload')]",
+                "Environment": "[parameters('environment')]"
+            },
+            "properties": {
+                "enabledForDeployment": false,
+                "enabledForDiskEncryption": false,
+                "enabledForTemplateDeployment": true,
+                "enableSoftDelete": true,
+                "enablePurgeProtection": true,
+                "tenantId": "[parameters('aadTenantId')]",
+                "accessPolicies": [
+                    {
+                        "objectId": "[reference(resourceId('Microsoft.Web/sites', variables('webAppName')), '2019-08-01', 'full').identity.principalId]",
+                        "tenantId": "[parameters('aadTenantId')]",
+                        "permissions": {
+                            "keys": [],
+                            "secrets": [
+                                "get"
+                            ]
+                        }
+                    },
+                    {
+                        "objectId": "[parameters('aadAminTeamId')]",
+                        "tenantId": "[parameters('aadTenantId')]",
+                        "permissions": {
+                            "keys": [],
+                            "secrets": [
+                                "get",
+                                "set",
+                                "list",
+                                "delete"
+                            ]
+                        }
+                    }
+                ],
+                "sku": {
+                    "name": "[parameters('keyVaultSku')]",
+                    "family": "A"
+                },
+                "networkAcls": {
+                    "defaultAction": "Deny",
+                    "bypass": "AzureServices",
+                    "ipRules": [
+                        {
+                            "value": "[parameters('sqlIpException')]",
+                            "action": "Allow"
+                        }
+                    ],
+                    "virtualNetworkRules": []
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Network/privateDnsZones",
+            "apiVersion": "2020-01-01",
+            "name": "[variables('kvPrivateDnsZoneName')]",
+            "location": "global",
+            "dependsOn": [
+                "[variables('vnetName')]"
+            ],
+            "properties": ""
+        },
+        {
+            "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+            "apiVersion": "2020-01-01",
+            "name": "[concat(variables('kvPrivateDnsZoneName'), '/', variables('kvPrivateDnsZoneName'), '-link')]",
+            "location": "global",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', variables('kvPrivateDnsZoneName'))]",
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+            ],
+            "properties": {
+                "registrationEnabled": false,
+                "virtualNetwork": {
+                    "id": "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Network/privateEndpoints",
+            "apiVersion": "2020-06-01",
+            "name": "[variables('kvPeName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[variables('vnetName')]",
+                "[variables('kvName')]"
+            ],
+            "properties": {
+                "subnet": {
+                    "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('subnetPrivateEndpoints'))]"
+                },
+                "privateLinkServiceConnections": [
+                    {
+                        "name": "[variables('kvPeName')]",
+                        "properties": {
+                            "privateLinkServiceId": "[resourceId('Microsoft.KeyVault/vaults',variables('kvName'))]",
+                            "groupIds": [
+                                "vault"
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+            "apiVersion": "2020-06-01",
+            "name": "[variables('kvPeDnsGroupName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', variables('kvPrivateDnsZoneName'))]",
+                "[variables('kvPeName')]"
+            ],
+            "properties": {
+                "privateDnsZoneConfigs": [
+                    {
+                        "name": "config1",
+                        "properties": {
+                            "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', variables('kvPrivateDnsZoneName'))]"
+                        }
+                    }
+                ]
+            }
         }
     ],
     "outputs": {

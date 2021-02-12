@@ -1,0 +1,51 @@
+trigger:
+  branches:
+    include:
+    - master
+  paths:
+    include:
+    - '/DemoApp.Func/'
+
+jobs:
+- job: 'BuildFunc'
+  displayName: 'Build Demo Function'
+  
+  pool:
+    vmImage: 'ubuntu-latest'
+
+  variables:
+    buildConfiguration: 'Release'
+
+  steps:
+  - task: UseDotNet@2
+    displayName: 'Install .NET 3 SDK'
+    inputs:
+      version: '3.1.x'
+  - task: DotNetCoreCLI@2
+    displayName: 'dotnet build'
+    inputs:
+      projects: 'DemoApp.Func/**/*.csproj'
+      command: 'build'
+      arguments: '--configuration $(buildConfiguration)'
+  - task: DotNetCoreCLI@2
+    displayName: 'dotnet publish'
+    inputs:
+      workingDirectory: 'DemoApp.Func'
+      projects: 'DemoApp.Func/**/*.csproj'
+      command: publish
+      publishWebProjects: False
+      arguments: '--configuration $(BuildConfiguration) --output $(Build.ArtifactStagingDirectory)'
+      zipAfterPublish: True
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish build artifact'
+    inputs:
+      pathtoPublish: '$(Build.ArtifactStagingDirectory)' 
+      artifactName: 'DemoApp.Func'
+  - task: AzureWebApp@1
+    displayName: 'Publish to Azure Web App'
+    inputs:
+      azureSubscription: 'Azure'
+      appName: '$(FuncAppName)'
+      package: '$(Build.ArtifactStagingDirectory)/**/*.zip'
+      deploymentMethod: 'zipDeploy'
+    
