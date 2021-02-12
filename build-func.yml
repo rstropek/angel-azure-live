@@ -41,11 +41,11 @@ jobs:
     inputs:
       pathtoPublish: '$(Build.ArtifactStagingDirectory)' 
       artifactName: 'DemoApp.Func'
-  - task: AzureWebApp@1
+  - task: AzureFunctionApp@1
     displayName: 'Publish to Azure Web App'
     inputs:
       azureSubscription: 'Azure'
       appName: '$(FuncAppName)'
+      appType: functionAppWindows
       package: '$(Build.ArtifactStagingDirectory)/**/*.zip'
-      deploymentMethod: 'zipDeploy'
     
